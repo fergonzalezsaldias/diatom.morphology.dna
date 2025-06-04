@@ -10,6 +10,11 @@ output:
     toc: yes
     df_print: paged
 ---
+```{r, include=F,message=F}
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=50),tidy=TRUE)
+```
+
 # Set working space
 ## Load libraries
 ```{r message=FALSE, warning=FALSE}
@@ -77,12 +82,16 @@ out.mds_18s <- cmdscale(dist.BC_18s ,eig=T,k=2)
 ```{r message=FALSE, warning=FALSE}
 #Residual calculation
 #COI
-pro_morpho_coi<- procrustes(X = out.mds_morpho, Y = out.mds_coi, symmetric = TRUE,choices = c(1,2))
-Res.coi=data.frame(resid=residuals(pro_morpho_coi),Station=names(residuals(pro_morpho_coi)),Method="COI")
+pro_morpho_coi<- procrustes(X = out.mds_morpho,
+                            Y = out.mds_coi, symmetric = TRUE,choices = c(1,2))
+Res.coi=data.frame(resid=residuals(pro_morpho_coi),
+                   Station=names(residuals(pro_morpho_coi)),Method="COI")
 
 #18S
-pro_morpho_18s<- procrustes(X = out.mds_morpho, Y = out.mds_18s, symmetric = TRUE)
-Res.18s=data.frame(resid=residuals(pro_morpho_18s),Station=names(residuals(pro_morpho_18s)),Method="18S")
+pro_morpho_18s<- procrustes(X = out.mds_morpho, 
+                            Y = out.mds_18s, symmetric = TRUE)
+Res.18s=data.frame(resid=residuals(pro_morpho_18s),
+                   Station=names(residuals(pro_morpho_18s)),Method="18S")
 
 #Concatenated residual of procrustes dataframe
 Res.all<-rbind(Res.coi,Res.18s)
@@ -107,11 +116,16 @@ Residuals=Res.all%>%
   geom_boxplot(outlier.shape = NA)+
   geom_jitter(width = 0.2,shape=21,size=2)+labs(x=" ",y="Residuals",title = "")+
   ylim(0,0.18)+
-  theme_bw()+ theme(strip.text.x = element_text(size=12),strip.background = element_blank(),
-                    panel.grid.minor = element_blank(),panel.grid.major = element_blank(), 
-                    axis.text.x = element_text(size=12,color="black",angle=0,vjust = 0.5),
-                    axis.text.y = element_text(size=8,color="black",angle=0,vjust = 0.5),
-                    axis.title.x = element_text(color="black", size=10,margin = margin(t = 5)),
+  theme_bw()+ theme(strip.text.x = element_text(size=12),
+                    strip.background = element_blank(),
+                    panel.grid.minor = element_blank(),
+                    panel.grid.major = element_blank(), 
+                    axis.text.x = element_text(size=12,color="black",
+                                               angle=0,vjust = 0.5),
+                    axis.text.y = element_text(size=8,color="black",
+                                               angle=0,vjust = 0.5),
+                    axis.title.x = element_text(color="black", size=10,
+                                                margin = margin(t = 5)),
                     axis.title.y = element_text(color="black", size=10),
                     text = element_text(family="serif"))
 ```
@@ -130,9 +144,11 @@ wilcox.test(Res.all$resid~Res.all$Method)
 ## Procrustes calculation
 ```{r message=FALSE, warning=FALSE}
 #Morphological v/s COI procrustes calculation
-pro_morpho_coi<- procrustes(X = out.mds_morpho, Y = out.mds_coi, symmetric = TRUE,choices = c(1,2))
+pro_morpho_coi<- procrustes(X = out.mds_morpho, 
+                            Y = out.mds_coi, symmetric = TRUE,choices = c(1,2))
 #stadistical test
-protest(X = out.mds_morpho, Y = out.mds_coi, scores = "sites", permutations = 999)
+protest(X = out.mds_morpho, 
+        Y = out.mds_coi, scores = "sites", permutations = 999)
 
 #Get data from pro_morfo_coi
 tmp.pro<-rbind(pro_morpho_coi[["Yrot"]],pro_morpho_coi[["X"]])
@@ -147,7 +163,7 @@ pro.df$Method<-factor(pro.df$Method, c("Molecular","Morphological"))
 
 pro.df<-merge(pro.df,COI[,1:3],by="Station",sort = FALSE)
 
-#Display panel figure 2A
+#Display panel figure 3A
 pro_morpho_coi=pro.df%>%
   ggplot(aes(X,Y,color=pH,shape=Method))+
   geom_line(aes(group=Station),color="black")+
@@ -200,7 +216,8 @@ pro_morpho_18s=pro.df_2%>%
         axis.text.y = element_text(size=8,color="black",angle=0,vjust = 0.5),
         text = element_text(family="serif"))+
   scale_color_gradientn(colours = c("#F27F0C","yellow","#7ed348","#26B170","#01377d"))+
-  theme(legend.position = "bottom",legend.key.size = unit(0.5, 'cm'),legend.text = element_text(size=10),
+  theme(legend.position = "bottom",legend.key.size = unit(0.5, 'cm'),
+        legend.text = element_text(size=10),
         legend.title = element_text(size = 12))+
   guides(shape = guide_legend(title.position = "top",ncol=1))
 legenda_18s_pro=get_plot_component(pro_morpho_18s, 'guide-box-bottom', return_all = TRUE)
@@ -364,8 +381,14 @@ S_morpho=ind_ph%>%
         text = element_text(family="serif"))+
   labs(y="Richness",x="pH", title = "      Morphological") +xlim(4,8)+ylim(0,70)+
   geom_smooth(se=FALSE,method="lm", formula=y~poly(x,2))+
-  annotate("text",x=5.8,y=11,label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~"x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~"x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),cex = 2.5,col="black")+
-  annotate("text",x=5.8,y=5,label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))),cex = 2.5,col="black")
+  annotate("text",x=5.8,y=11,
+           label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~
+                          "x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~
+                          "x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),
+           cex = 2.5,col="black")+
+  annotate("text",x=5.8,y=5,
+           label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))),
+           cex = 2.5,col="black")
 
 ```
 
@@ -391,8 +414,14 @@ S_COI=ind_ph%>%
         text = element_text(family="serif"))+
   labs(y="",x="pH", title = "      COI") +xlim(4,8)+ylim(0,70)+
   geom_smooth(se=FALSE,method="lm", formula=y~poly(x,2))+
-  annotate("text",x=5.6,y=60,label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~"x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~"x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),cex = 2.5,col="black")+
-  annotate("text",x=5.6,y=55,label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))~"*"),cex = 2.5,col="black")
+  annotate("text",x=5.6,y=60,
+           label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~
+                        "x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~
+                        "x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),
+           cex = 2.5,col="black")+
+  annotate("text",x=5.6,y=55,
+           label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))~"*"),
+           cex = 2.5,col="black")
 
 ```
 
@@ -419,8 +448,14 @@ S_18s=ind_ph%>%
         text = element_text(family="serif"))+
   labs(y="",x="pH", title = "      18S rRNA") +xlim(4,8)+ylim(0,70)+
   geom_smooth(se=FALSE,method="lm", formula=y~poly(x,2))+
-  annotate("text",x=5.5,y=60,label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~"x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~"x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),cex = 2.5,col="black")+
-  annotate("text",x=5.5,y=55,label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))~"*"),cex =2.5,col="black")
+  annotate("text",x=5.5,y=60,
+           label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~
+                          "x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~
+                          "x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),
+           cex = 2.5,col="black")+
+  annotate("text",x=5.5,y=55,
+           label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))~"*"),
+           cex =2.5,col="black")
 
 ```
 
@@ -449,8 +484,14 @@ H_morpho=ind_ph%>%
         text = element_text(family="serif"))+
   labs(y="Shannon",x="pH", title = "") +xlim(4,8)+ylim(0,4)+
   geom_smooth(se=FALSE,method="lm", formula=y~poly(x,2))+
-  annotate("text",x=5.6,y=1.0,label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~"x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~"x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),cex =2.5,col="black")+
-  annotate("text",x=5.6,y=0.7,label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))),cex =2.5,col="black")
+  annotate("text",x=5.6,y=1.0,
+           label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~
+                         "x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~
+                         "x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),
+           cex =2.5,col="black")+
+  annotate("text",x=5.6,y=0.7,
+           label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))),
+           cex =2.5,col="black")
 
 ```
 
@@ -477,8 +518,14 @@ H_COI=ind_ph%>%
         text = element_text(family="serif"))+
   labs(y="",x="pH", title = "") +xlim(4,8)+ylim(0,4)+
   geom_smooth(se=FALSE,method="lm", formula=y~poly(x,2))+
-  annotate("text",x=5.5,y=3.9,label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~"x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~"x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),cex =2.5,col="black")+
-  annotate("text",x=5.5,y=3.6,label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))~"**"),cex =2.5,col="black")
+  annotate("text",x=5.5,y=3.9,
+           label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~
+                        "x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~
+                        "x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),
+           cex =2.5,col="black")+
+  annotate("text",x=5.5,y=3.6,
+           label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))~"**"),
+           cex =2.5,col="black")
 
 ```
 
@@ -507,8 +554,14 @@ H_18s=ind_ph%>%
         text = element_text(family="serif"))+
   labs(y="",x="pH", title = "") +xlim(4,8)+ylim(0,4)+
   geom_smooth(se=FALSE,method="lm", formula=y~poly(x,2))+
-  annotate("text",x=5.5,y=3.8,label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~"x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~"x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),cex =2.5,col="black")+
-  annotate("text",x=5.5,y=3.5,label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))~"*"),cex =2.5,col="black")
+  annotate("text",x=5.5,y=3.8,
+           label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~
+                         "x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~
+                         "x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),
+           cex =2.5,col="black")+
+  annotate("text",x=5.5,y=3.5,
+           label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))~"*"),
+           cex =2.5,col="black")
 
 ```
 
@@ -537,8 +590,14 @@ J_morpho=ind_ph%>%
         text = element_text(family="serif"))+
   labs(y="Pielou evenness",x="pH", title = "") +xlim(4,8)+ylim(0,1)+
   geom_smooth(se=FALSE,method="lm", formula=y~poly(x,2))+
-  annotate("text",x=5.6,y=0.32,label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~"x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~"x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),cex =2.5,col="black")+
-  annotate("text",x=5.6,y=0.25,label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))),cex =2.5,col="black")
+  annotate("text",x=5.6,y=0.32,
+           label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~
+                          "x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~
+                          "x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),
+           cex =2.5,col="black")+
+  annotate("text",x=5.6,y=0.25,
+           label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))),
+           cex =2.5,col="black")
 
 ```
 
@@ -567,8 +626,14 @@ J_COI=ind_ph%>%
         text = element_text(family="serif"))+
   labs(y="",x="pH", title = "") +xlim(4,8)+ylim(0,1)+
   geom_smooth(se=FALSE,method="lm", formula=y~poly(x,2))+
-  annotate("text",x=5.8,y=0.32,label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~"x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~"x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),cex = 2.5,col="black")+
-  annotate("text",x=5.8,y=0.25,label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))~"***"),cex =2.5,col="black")
+  annotate("text",x=5.8,y=0.32,
+           label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~
+                         "x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~
+                         "x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),
+           cex = 2.5,col="black")+
+  annotate("text",x=5.8,y=0.25,
+           label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))~"***"),
+           cex =2.5,col="black")
 
 ```
 
@@ -597,8 +662,14 @@ J_18s=ind_ph%>%
         text = element_text(family="serif"))+
   labs(y="",x="pH", title = "") +xlim(4,8)+ylim(0,1)+
   geom_smooth(se=FALSE,method="lm", formula=y~poly(x,2))+
-  annotate("text",x=6.6,y=0.30,label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~"x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~"x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),cex = 2.5,col="black")+
-  annotate("text",x=6.6,y=0.23,label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))~"***"),cex =2.5,col="black")
+  annotate("text",x=6.6,y=0.30,
+           label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~
+                         "x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~
+                         "x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),
+           cex = 2.5,col="black")+
+  annotate("text",x=6.6,y=0.23,
+           label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))~"***"),
+           cex =2.5,col="black")
 
 ```
 
@@ -653,16 +724,23 @@ head(meta.diff.rich)
 plot.L2FC.rich<-meta.diff.rich%>%
   ggplot(aes(L2FC,Method,fill=Method))+
   geom_boxplot(outlier.shape = NA,alpha=0.4)+
-  geom_jitter(aes(L2FC,Method,fill=Method),position=position_jitterdodge(0.4),shape=21,size=1)+
-  scale_fill_manual(values = c("#6600CC","#FF9900"))+geom_vline(xintercept = 0,linetype="dashed")+
+  geom_jitter(aes(L2FC,Method,fill=Method),position=position_jitterdodge(0.4),
+              shape=21,size=1)+
+  scale_fill_manual(values = c("#6600CC","#FF9900"))+geom_vline(xintercept = 0,
+                                                                linetype="dashed")+
   labs(x="",y="Richness")+xlim(-3.5,2)+
-  theme_bw()+theme(strip.text.x = element_text(size=10),strip.background = element_blank(),
-                   panel.grid.minor = element_blank(),panel.grid.major = element_blank(),
-                   axis.text.x =element_blank(),axis.title.x= element_blank(),
-                   axis.text.y = element_text(size=8,color="black",angle=0,vjust = 0.5),
+  theme_bw()+theme(strip.text.x = element_text(size=10),
+                   strip.background = element_blank(),
+                   panel.grid.minor = element_blank(),
+                   panel.grid.major = element_blank(),
+                   axis.text.x =element_blank(),
+                   axis.title.x= element_blank(),
+                   axis.text.y = element_text(size=8,color="black",
+                                              angle=0,vjust = 0.5),
                    axis.title.y = element_text(color="black", size=10),
                    text = element_text(family="serif"))+
-  theme(legend.position = "right",legend.key.size = unit(0.5, 'cm'),legend.text = element_text(size=8))#+theme(plot.margin=margin(b=-1.8,unit="cm"))
+  theme(legend.position = "right",legend.key.size = unit(0.5, 'cm'),
+        legend.text = element_text(size=8))
 legenda_rich=get_legend(plot.L2FC.rich)
 plot.L2FC.rich=plot.L2FC.rich+theme(legend.position = "none")
 
@@ -695,16 +773,23 @@ head(meta.diff.shannon)
 plot.L2FC.shannon<-meta.diff.shannon%>%
   ggplot(aes(L2FC,Method,fill=Method))+
   geom_boxplot(outlier.shape = NA,alpha=0.4)+
-  geom_jitter(aes(L2FC,Method,fill=Method),position=position_jitterdodge(0.4),shape=21,size=1)+
-  scale_fill_manual(values = c("#6600CC","#FF9900"))+geom_vline(xintercept = 0,linetype="dashed")+
+  geom_jitter(aes(L2FC,Method,fill=Method),position=position_jitterdodge(0.4),
+              shape=21,size=1)+
+  scale_fill_manual(values = c("#6600CC","#FF9900"))+geom_vline(xintercept = 0,
+                                                                linetype="dashed")+
   labs(x="",y="Shannon")+xlim(-3.5,2)+
-  theme_bw()+theme(strip.text.x = element_text(size=10),strip.background = element_blank(),
-                   panel.grid.minor = element_blank(),panel.grid.major = element_blank(),
-                   axis.text.x =element_blank(),axis.title.x= element_blank(),
-                   axis.text.y = element_text(size=8,color="black",angle=0,vjust = 0.5),
+  theme_bw()+theme(strip.text.x = element_text(size=10),
+                   strip.background = element_blank(),
+                   panel.grid.minor = element_blank(),
+                   panel.grid.major = element_blank(),
+                   axis.text.x =element_blank(),
+                   axis.title.x= element_blank(),
+                   axis.text.y = element_text(size=8,color="black",
+                                              angle=0,vjust = 0.5),
                    axis.title.y = element_text(color="black", size=10),
                    text = element_text(family="serif"))+
-  theme(legend.position = "right",legend.key.size = unit(0.5, 'cm'),legend.text = element_text(size=8))
+  theme(legend.position = "right",legend.key.size = unit(0.5, 'cm'),
+        legend.text = element_text(size=8))
 legenda_shannon=get_legend(plot.L2FC.shannon)
 plot.L2FC.shannon=plot.L2FC.shannon+theme(legend.position = "none")
 
@@ -737,14 +822,21 @@ head(meta.diff.pielou)
 plot.L2FC.pielou<-meta.diff.pielou%>%
   ggplot(aes(L2FC,Method, fill=Method))+
   geom_boxplot(outlier.shape = NA,alpha=0.4)+
-  geom_jitter(aes(L2FC,Method,fill=Method),position=position_jitterdodge(0.4),shape=21,size=1)+
-  scale_fill_manual(values = c("#6600CC","#FF9900"))+geom_vline(xintercept = 0,linetype="dashed")+
+  geom_jitter(aes(L2FC,Method,fill=Method),position=position_jitterdodge(0.4),
+              shape=21,size=1)+
+  scale_fill_manual(values = c("#6600CC","#FF9900"))+geom_vline(xintercept = 0,
+                                                                linetype="dashed")+
   labs(x=expression("Log" [2] * " fold change"),y="Pielou evenness")+xlim(-3.5,2)+
-  theme_bw()+theme(strip.text.x = element_text(size=10),strip.background = element_blank(),
-                   panel.grid.minor = element_blank(),panel.grid.major = element_blank(),
-                   axis.text.x = element_text(size=8,color="black",angle=0,vjust = 0.5),
-                   axis.text.y = element_text(size=8,color="black",angle=0,vjust = 0.5),
-                   axis.title.x = element_text(color="black", size=10,margin = margin(t = 0,l=0)),
+  theme_bw()+theme(strip.text.x = element_text(size=10),
+                   strip.background = element_blank(),
+                   panel.grid.minor = element_blank(),
+                   panel.grid.major = element_blank(),
+                   axis.text.x = element_text(size=8,color="black",
+                                              angle=0,vjust = 0.5),
+                   axis.text.y = element_text(size=8,color="black",
+                                              angle=0,vjust = 0.5),
+                   axis.title.x = element_text(color="black", size=10,
+                                               margin = margin(t = 0,l=0)),
                    axis.title.y = element_text(color="black", size=10),
                    text = element_text(family="serif"))+ 
   guides(fill=guide_legend(ncol=2))+
@@ -782,7 +874,8 @@ richness_corr=ggcorrplot(corr_rich$r,type = "upper",
         axis.text.x = element_text(size=8,color="black",angle=0,vjust = 0.5),
         axis.text.y = element_text(size=8,color="black",angle=0,vjust = 0.5),
         text = element_text(family="serif"))+
-  theme(legend.position = "none",legend.key.size = unit(0.5, 'cm'),legend.text = element_text(size=8))
+  theme(legend.position = "none",legend.key.size = unit(0.5, 'cm'),
+        legend.text = element_text(size=8))
 
 ```
 
@@ -806,7 +899,8 @@ shannon_corr=ggcorrplot(corr_sha$r,type = "upper",
         axis.text.x = element_text(size=8,color="black",angle=0,vjust = 0.5),
         axis.text.y = element_text(size=8,color="black",angle=0,vjust = 0.5),
         text = element_text(family="serif"))+
-  theme(legend.position = "none",legend.key.size = unit(0.5, 'cm'),legend.text = element_text(size=8))
+  theme(legend.position = "none",legend.key.size = unit(0.5, 'cm'),
+        legend.text = element_text(size=8))
 
 ```
 
@@ -825,14 +919,16 @@ pielou_corr=ggcorrplot(corr_pie$r,type = "upper",
   theme_bw()+
   theme_tufte(base_size = 7)+
   theme(strip.text.x = element_text(size=12),strip.background = element_blank(),
-        panel.grid.minor = element_blank(),panel.grid.major = element_blank(),                   #axis.text.x =element_blank(),axis.title.x= element_blank(),
+        panel.grid.minor = element_blank(),panel.grid.major = element_blank(),
         axis.title.x =element_blank(),axis.title.y= element_blank(),
         axis.text.x = element_text(size=8,color="black",angle=0,vjust = 0.5),
         axis.text.y = element_text(size=8,color="black",angle=0,vjust = 0.5),
         text = element_text(family="serif"))+
-  theme(legend.position = "bottom",legend.key.size = unit(0.4, 'cm'),legend.text = element_text(size=8),
+  theme(legend.position = "bottom",legend.key.size = unit(0.4, 'cm'),
+        legend.text = element_text(size=8),
         legend.title = element_text(size = 8))
-legenda_pielou_corr=get_plot_component(pielou_corr, 'guide-box-bottom', return_all = TRUE)
+legenda_pielou_corr=get_plot_component(pielou_corr, 'guide-box-bottom',
+                                       return_all = TRUE)
 pielou_corr=pielou_corr+theme(legend.position = "none")
 
 ```
