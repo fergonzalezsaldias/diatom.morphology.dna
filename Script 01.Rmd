@@ -1,0 +1,858 @@
+---
+title: "Script1"
+author: "Fernanda Gonzalez-Saldias"
+date: "2025-06-02"
+output:
+  pdf_document:
+    number_sections: yes
+    toc: yes
+  html_document:
+    toc: yes
+    df_print: paged
+---
+# Set working space
+## Load libraries
+```{r message=FALSE, warning=FALSE}
+
+rm(list=ls())
+library(vegan)
+library(ggplot2)
+library(dplyr)
+library(readxl)
+library(xlsx)
+library(Hmisc)
+library(ggcorrplot)
+library(ggthemes)
+library(corrplot)
+library(vegan)
+library(cowplot)
+library(car)
+library("pgirmess")
+library(microbiome)
+
+
+```
+
+
+## Load morphological and molecular of relative abundances dataset
+```{r message=FALSE, warning=FALSE,fig.align="center"}
+Morpho=data.frame(read_xlsx("data\\Table S2.xlsx",sheet="Morphological",na=""))
+head(Morpho)[,1:5]
+COI=data.frame(read_xlsx("data\\Table S2.xlsx",sheet="COI",na=""))
+head(COI)[,1:5]
+X18s=data.frame(read_xlsx("data\\Table S2.xlsx",sheet="18S rRNA",na=""))
+head(X18s)[,1:5]
+
+#assigned rownames
+rownames(Morpho)=(Morpho$Station)
+rownames(COI)=(COI$Station)
+rownames(X18s)=(X18s$Station)
+
+#Select the numeric data
+dato_morpho<-Morpho[4:386]
+dato_coi<-COI[4:280]#277 otus
+dato_18s<-X18s[4:169]#166 otus
+
+#square root transformation of relative abundance data
+datos.trans_morpho <- sqrt(dato_morpho)
+datos.trans_coi <- sqrt(dato_coi)
+datos.trans_18s<- sqrt(dato_18s)
+```
+
+# Procrustes analysis
+## Distances calculation
+```{r message=FALSE, warning=FALSE}
+dist.BC_morpho <- vegdist(datos.trans_morpho)
+dist.BC_coi <- vegdist(datos.trans_coi) 
+dist.BC_18s <- vegdist(datos.trans_18s) 
+
+#distances
+out.mds_morpho <- cmdscale(dist.BC_morpho,eig=T,k=2)
+out.mds_coi <- cmdscale(dist.BC_coi,eig=T,k=2)
+out.mds_18s <- cmdscale(dist.BC_18s ,eig=T,k=2)
+```
+
+
+## Procrustes between morphological to molecular identification
+```{r message=FALSE, warning=FALSE}
+#Residual calculation
+#COI
+pro_morpho_coi<- procrustes(X = out.mds_morpho, Y = out.mds_coi, symmetric = TRUE,choices = c(1,2))
+Res.coi=data.frame(resid=residuals(pro_morpho_coi),Station=names(residuals(pro_morpho_coi)),Method="COI")
+
+#18S
+pro_morpho_18s<- procrustes(X = out.mds_morpho, Y = out.mds_18s, symmetric = TRUE)
+Res.18s=data.frame(resid=residuals(pro_morpho_18s),Station=names(residuals(pro_morpho_18s)),Method="18S")
+
+#Concatenated residual of procrustes dataframe
+Res.all<-rbind(Res.coi,Res.18s)
+
+#a merge is performed with the data matrix to add the location, station and pH.
+Res.all=merge(Res.all,Morpho[,1:3],by="Station",sort = FALSE)
+
+#Set method as a factor
+Res.all$Method=as.factor(Res.all$Method)
+
+#reorder factors
+Res.all$Method=factor(Res.all$Method,c("COI","18S"))
+head(Res.all)
+```
+
+
+## Create the residual figure
+```{r fig.align="center", message=FALSE, warning=FALSE}
+#Display panel figure 3C
+Residuals=Res.all%>%
+  ggplot(aes(Method,resid))+
+  geom_boxplot(outlier.shape = NA)+
+  geom_jitter(width = 0.2,shape=21,size=2)+labs(x=" ",y="Residuals",title = "")+
+  ylim(0,0.18)+
+  theme_bw()+ theme(strip.text.x = element_text(size=12),strip.background = element_blank(),
+                    panel.grid.minor = element_blank(),panel.grid.major = element_blank(), 
+                    axis.text.x = element_text(size=12,color="black",angle=0,vjust = 0.5),
+                    axis.text.y = element_text(size=8,color="black",angle=0,vjust = 0.5),
+                    axis.title.x = element_text(color="black", size=10,margin = margin(t = 5)),
+                    axis.title.y = element_text(color="black", size=10),
+                    text = element_text(family="serif"))
+```
+
+
+
+```{r message=FALSE, warning=FALSE}
+#Normality test
+tapply(Res.all$resid,Res.all$Method,shapiro.test)
+#Statistical test
+wilcox.test(Res.all$resid~Res.all$Method)
+
+```
+
+
+## Procrustes calculation
+```{r message=FALSE, warning=FALSE}
+#Morphological v/s COI procrustes calculation
+pro_morpho_coi<- procrustes(X = out.mds_morpho, Y = out.mds_coi, symmetric = TRUE,choices = c(1,2))
+#stadistical test
+protest(X = out.mds_morpho, Y = out.mds_coi, scores = "sites", permutations = 999)
+
+#Get data from pro_morfo_coi
+tmp.pro<-rbind(pro_morpho_coi[["Yrot"]],pro_morpho_coi[["X"]])
+
+pro.df<-data.frame(X=tmp.pro[,1],
+                   Y=tmp.pro[,2],
+                   Method=rep(c("Molecular","Morphological"),each=66),
+                   Station=row.names(tmp.pro))
+
+pro.df$Method<-as.factor(pro.df$Method)
+pro.df$Method<-factor(pro.df$Method, c("Molecular","Morphological"))
+
+pro.df<-merge(pro.df,COI[,1:3],by="Station",sort = FALSE)
+
+#Display panel figure 2A
+pro_morpho_coi=pro.df%>%
+  ggplot(aes(X,Y,color=pH,shape=Method))+
+  geom_line(aes(group=Station),color="black")+
+  geom_point(size=4)+
+  theme_bw()+labs(x="Dimension 1",y="Dimension 2",title = "Morphological vs. COI")+
+  theme(strip.text.x = element_text(size=12),strip.background = element_blank(),
+        panel.grid.minor = element_blank(),panel.grid.major = element_blank(),
+        plot.title = element_text(size=12,hjust =0.5), 
+        axis.title.x =element_text(size=10,color="black"),
+        axis.title.y= element_text(size=10,color="black"),
+        axis.text.x = element_text(size=8,color="black",angle=0,vjust = 0.5),
+        axis.text.y = element_text(size=8,color="black",angle=0,vjust = 0.5),
+        text = element_text(family="serif"))+
+  scale_color_gradientn(colours = c("#F27F0C","yellow","#7ed348","#26B170","#01377d"))+
+  theme(legend.position = "none")
+```
+
+
+```{r message=FALSE, warning=FALSE}
+#Morphological v/s 18S procrustes calculation
+pro_morpho_18s<- procrustes(X = out.mds_morpho, Y = out.mds_18s, symmetric = TRUE)
+#Statistical test
+protest(X = out.mds_morpho, Y = out.mds_18s, scores = "sites", permutations = 999)
+
+#Get data from pro_morfo_18s
+tmp.pro_2<-rbind(pro_morpho_18s[["Yrot"]],pro_morpho_18s[["X"]])
+
+pro.df_2<-data.frame(X=tmp.pro_2[,1],
+                     Y=tmp.pro_2[,2],
+                     Method=rep(c("Molecular","Morphological"),each=66),
+                     Station=row.names(tmp.pro_2))
+
+pro.df_2$Method<-as.factor(pro.df_2$Method)
+pro.df_2$Method<-factor(pro.df_2$Method, c("Molecular","Morphological"))
+
+pro.df_2<-merge(pro.df_2,X18s[,1:3],by="Station",sort = FALSE)
+
+#Display panel figure 3B
+pro_morpho_18s=pro.df_2%>%
+  ggplot(aes(X,Y,color=pH,shape=Method))+
+  geom_line(aes(group=Station),color="black")+
+  geom_point(size=4)+
+  theme_bw()+labs(x="Dimension 1",y="Dimension 2",title = "Morphological vs. 18S rRNA")+
+  theme(strip.text.x = element_text(size=12),strip.background = element_blank(),
+        panel.grid.minor = element_blank(),panel.grid.major = element_blank(),
+        plot.title = element_text(size=12,hjust =0.5), 
+        axis.title.x =element_text(size=10,color="black"),
+        axis.title.y= element_text(size=10,color="black"),
+        axis.text.x = element_text(size=8,color="black",angle=0,vjust = 0.5),
+        axis.text.y = element_text(size=8,color="black",angle=0,vjust = 0.5),
+        text = element_text(family="serif"))+
+  scale_color_gradientn(colours = c("#F27F0C","yellow","#7ed348","#26B170","#01377d"))+
+  theme(legend.position = "bottom",legend.key.size = unit(0.5, 'cm'),legend.text = element_text(size=10),
+        legend.title = element_text(size = 12))+
+  guides(shape = guide_legend(title.position = "top",ncol=1))
+legenda_18s_pro=get_plot_component(pro_morpho_18s, 'guide-box-bottom', return_all = TRUE)
+pro_morpho_18s=pro_morpho_18s+theme(legend.position = "none")
+```
+
+## Display Figure 3
+Figure 3: Comparison of MDS through Procrustes analysis between morphological vs. COI (A) and morphological vs. 18S (B). Residual values from comparing morphological identification and the two molecular identifications (18S and COI) (C).
+
+```{r echo=FALSE, fig.align="center", message=FALSE, warning=FALSE}
+#pdf(file="Figure 3.pdf",height = 15/2.54, width = 20/2.54)
+plot_grid(plot_grid(pro_morpho_coi,Residuals,labels = c("A","C"),label_fontfamily = "serif"),
+          plot_grid(pro_morpho_18s,legenda_18s_pro,labels = c("B"),label_fontfamily =  "serif"),nrow =2,
+          rel_heights = c(0.9,0.9),rel_widths = c(0.8,0.1),axis = "l")
+#dev.off()
+```
+
+
+# Lineal model
+## Load metadata, alpha diversity calculation and Statistical analysis
+```{r message=FALSE, warning=FALSE}
+#Load metadata
+metadata=data.frame(read_xlsx("data\\Table S1.xlsx",sheet="Metadata",na=""))
+
+#alpha diversity calculation
+metadata$H_morpho=vegan::diversity(t(t(Morpho[,4:386])))
+metadata$S_morpho=vegan::specnumber(t(t(Morpho[,4:386])))
+metadata$J_morpho=evenness((t(Morpho[,4:386])),'pielou')[,1]
+
+metadata$H_COI=vegan::diversity(t(t(COI[,4:280])))
+metadata$S_COI=vegan::specnumber(t(t(COI[,4:280])))
+metadata$J_COI=evenness((t(COI[,4:280])),'pielou')[,1]
+
+metadata$H_18s=vegan::diversity(t(t(X18s[,4:169])))
+metadata$S_18s=vegan::specnumber(t(t(X18s[,4:169])))
+metadata$J_18s=evenness((t(X18s[,4:169])),'pielou')[,1]
+head(metadata)[,1:5]
+
+morpho_index=metadata[,1:2]
+morpho_index$Type<-"Morpho"
+morpho_index$Richness=metadata[,25]
+morpho_index$Shannon=metadata[,24]
+morpho_index$Pielou=metadata[,26]
+
+coi_index=metadata[,1:2]
+coi_index$Type<-"COI"
+coi_index$Richness=metadata[,28]
+coi_index$Shannon=metadata[,27]
+coi_index$Pielou=metadata[,29]
+
+x18s_index=metadata[,1:2]
+x18s_index$Type<-"18S"
+x18s_index$Richness=metadata[,31]
+x18s_index$Shannon=metadata[,30]
+x18s_index$Pielou=metadata[,32]
+
+analisis=rbind(morpho_index,coi_index,x18s_index)
+head(analisis)[,1:5]
+
+```
+
+
+```{r message=FALSE, warning=FALSE,fig.align="center"}
+#Richness
+#Normality test
+tapply(analisis$Richness,analisis$Type,shapiro.test)
+
+#homoscedasticity test
+bartlett.test(analisis$Richness~analisis$Type)
+
+#kruskal Wallis test calculation
+kruskal_S=kruskal.test(analisis$Richness~analisis$Type)
+kruskal_S
+#Post test to evaluate where are the significant differences
+kruskalmc(analisis$Richness~analisis$Type,alpha=0.001)
+
+```
+
+
+```{r message=FALSE, warning=FALSE}
+#Shannon index
+#Normality test
+tapply(analisis$Shannon,analisis$Type,shapiro.test)
+
+#homoscedasticity test
+bartlett.test(analisis$Shannon~analisis$Type)
+
+#kruskal Wallis test calculation
+kruskal_H=kruskal.test(analisis$Shannon~analisis$Type)
+kruskal_H
+#Post test to evaluate where are the significant differences
+kruskalmc(analisis$Shannon~analisis$Type,alpha=0.01)
+
+```
+
+
+```{r message=FALSE, warning=FALSE}
+#Pielou evenness
+#Normality test
+tapply(analisis$Pielou,analisis$Type,shapiro.test)
+
+#homoscedasticity test
+bartlett.test(analisis$Pielou~analisis$Type)
+
+#kruskal Wallis test calculation
+kruskal_J=kruskal.test(analisis$Pielou~analisis$Type)
+kruskal_J
+```
+
+
+## To make a new data frame with pH mean, minimum and max for location and alpha index
+```{r message=FALSE, warning=FALSE}
+ind_ph=aggregate(pH~Location,data=metadata,mean)
+ind_ph$pH.sd=aggregate(pH~Location,data=metadata,sd)[,2]
+ind_ph$S_morpho=aggregate(S_morpho~Location,data=metadata,mean)[,2]
+ind_ph$S_morpho.sd=aggregate(S_morpho~Location,data=metadata,sd)[,2]
+ind_ph$S_COI=aggregate(S_COI~Location,data=metadata,mean)[,2]
+ind_ph$S_COI.sd=aggregate(S_COI~Location,data=metadata,sd)[,2]
+ind_ph$S_18S=aggregate(S_18s~Location,data=metadata,mean)[,2]
+ind_ph$S_18S.sd=aggregate(S_18s~Location,data=metadata,sd)[,2]
+
+ind_ph$H_morpho=aggregate(H_morpho~Location,data=metadata,mean)[,2]
+ind_ph$H_morpho.sd=aggregate(H_morpho~Location,data=metadata,sd)[,2]
+ind_ph$H_COI=aggregate(H_COI~Location,data=metadata,mean)[,2]
+ind_ph$H_COI.sd=aggregate(H_COI~Location,data=metadata,sd)[,2]
+ind_ph$H_18S=aggregate(H_18s~Location,data=metadata,mean)[,2]
+ind_ph$H_18S.sd=aggregate(H_18s~Location,data=metadata,sd)[,2]
+
+ind_ph$J_morpho=aggregate(J_morpho~Location,data=metadata,mean)[,2]
+ind_ph$J_morpho.sd=aggregate(J_morpho~Location,data=metadata,sd)[,2]
+ind_ph$J_COI=aggregate(J_COI~Location,data=metadata,mean)[,2]
+ind_ph$J_COI.sd=aggregate(J_COI~Location,data=metadata,sd)[,2]
+ind_ph$J_18S=aggregate(J_18s~Location,data=metadata,mean)[,2]
+ind_ph$J_18S.sd=aggregate(J_18s~Location,data=metadata,sd)[,2]
+head(ind_ph)
+```
+
+
+## Models and figures
+### Richness
+```{r fig.align="center", fig.height=4, fig.width=4, message=FALSE, warning=FALSE}
+#Morphological
+lineal.poly=lm(S_morpho~poly(pH,2),data=ind_ph)
+summary(lineal.poly)
+lineal.lm=lm(S_morpho~pH,data=ind_ph)
+summary(lineal.lm)
+AIC(lineal.poly,lineal.lm)
+
+#Display panel figure 4A
+S_morpho=ind_ph%>%
+  ggplot(aes(pH,S_morpho))+
+  geom_point() + 
+  geom_errorbar(aes(ymin = S_morpho-S_morpho.sd,ymax = S_morpho+S_morpho.sd )) + 
+  geom_errorbarh(aes(xmin = pH-pH.sd,xmax = pH+pH.sd))+
+  theme_bw()+
+  theme(strip.text.x = element_text(size=10),strip.background = element_blank(),
+        panel.grid.minor = element_blank(),panel.grid.major = element_blank(),
+        axis.text.x =element_blank(),axis.title.x= element_blank(),
+        axis.text.y = element_text(size=10, color="black"),
+        axis.title = element_text(color="black",size=12, face="bold"),
+        text = element_text(family="serif"))+
+  labs(y="Richness",x="pH", title = "      Morphological") +xlim(4,8)+ylim(0,70)+
+  geom_smooth(se=FALSE,method="lm", formula=y~poly(x,2))+
+  annotate("text",x=5.8,y=11,label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~"x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~"x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),cex = 2.5,col="black")+
+  annotate("text",x=5.8,y=5,label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))),cex = 2.5,col="black")
+
+```
+
+```{r fig.align="center", fig.height=4, fig.width=4, message=FALSE, warning=FALSE}
+#COI
+lineal.poly=lm(S_COI~poly(pH,2),data=ind_ph)
+summary(lineal.poly)
+lineal.lm=lm(S_COI~pH,data=ind_ph)
+summary(lineal.lm)
+AIC(lineal.poly,lineal.lm)
+
+#Display panel figure 4B
+S_COI=ind_ph%>%
+  ggplot(aes(pH,S_COI))+
+  geom_point() + 
+  geom_errorbar(aes(ymin = S_COI-S_COI.sd,ymax = S_COI+S_COI.sd )) + 
+  geom_errorbarh(aes(xmin = pH-pH.sd,xmax = pH+pH.sd))+
+  theme_bw()+
+  theme(strip.text.x = element_text(size=10),strip.background = element_blank(),
+        panel.grid.minor = element_blank(),panel.grid.major = element_blank(),
+        axis.text.x =element_blank(),axis.title.x= element_blank(),
+        axis.text.y =element_blank(),axis.title.y= element_blank(),
+        text = element_text(family="serif"))+
+  labs(y="",x="pH", title = "      COI") +xlim(4,8)+ylim(0,70)+
+  geom_smooth(se=FALSE,method="lm", formula=y~poly(x,2))+
+  annotate("text",x=5.6,y=60,label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~"x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~"x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),cex = 2.5,col="black")+
+  annotate("text",x=5.6,y=55,label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))~"*"),cex = 2.5,col="black")
+
+```
+
+
+```{r fig.align="center", fig.height=4, fig.width=4, message=FALSE, warning=FALSE}
+#18S rRNA
+lineal.poly=lm(S_18S~poly(pH,2),data=ind_ph)
+summary(lineal.poly)
+lineal.lm=lm(S_18S~pH,data=ind_ph)
+summary(lineal.lm)
+AIC(lineal.poly,lineal.lm)
+
+#Display panel figure 4C
+S_18s=ind_ph%>%
+  ggplot(aes(pH,S_18S))+
+  geom_point() + 
+  geom_errorbar(aes(ymin = S_18S-S_18S.sd,ymax = S_18S+S_18S.sd )) + 
+  geom_errorbarh(aes(xmin = pH-pH.sd,xmax = pH+pH.sd))+
+  theme_bw()+
+  theme(strip.text.x = element_text(size=10),strip.background = element_blank(),
+        panel.grid.minor = element_blank(),panel.grid.major = element_blank(),
+        axis.text.x =element_blank(),axis.title.x= element_blank(),
+        axis.text.y =element_blank(),axis.title.y= element_blank(),
+        text = element_text(family="serif"))+
+  labs(y="",x="pH", title = "      18S rRNA") +xlim(4,8)+ylim(0,70)+
+  geom_smooth(se=FALSE,method="lm", formula=y~poly(x,2))+
+  annotate("text",x=5.5,y=60,label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~"x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~"x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),cex = 2.5,col="black")+
+  annotate("text",x=5.5,y=55,label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))~"*"),cex =2.5,col="black")
+
+```
+
+
+### Shannon index
+```{r fig.align="center", fig.height=4, fig.width=4, message=FALSE, warning=FALSE}
+#Morpholoical
+lineal.poly=lm(H_morpho~poly(pH,2),data=ind_ph)
+summary(lineal.poly)
+lineal.lm=lm(H_morpho~pH,data=ind_ph)
+summary(lineal.lm)
+AIC(lineal.poly,lineal.lm)
+
+#Display panel figure 4D
+H_morpho=ind_ph%>%
+  ggplot(aes(pH,H_morpho))+
+  geom_point() + 
+  geom_errorbar(aes(ymin = H_morpho-H_morpho.sd,ymax = H_morpho+H_morpho.sd )) + 
+  geom_errorbarh(aes(xmin = pH-pH.sd,xmax = pH+pH.sd))+
+  theme_bw()+
+  theme(strip.text.x = element_text(size=10),strip.background = element_blank(),
+        panel.grid.minor = element_blank(),panel.grid.major = element_blank(),
+        axis.text.x =element_blank(),axis.title.x= element_blank(),
+        axis.text.y = element_text(size=10, color="black"),
+        axis.title = element_text(color="black",size=12, face="bold"),
+        text = element_text(family="serif"))+
+  labs(y="Shannon",x="pH", title = "") +xlim(4,8)+ylim(0,4)+
+  geom_smooth(se=FALSE,method="lm", formula=y~poly(x,2))+
+  annotate("text",x=5.6,y=1.0,label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~"x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~"x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),cex =2.5,col="black")+
+  annotate("text",x=5.6,y=0.7,label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))),cex =2.5,col="black")
+
+```
+
+
+```{r fig.align="center", fig.height=4, fig.width=4, message=FALSE, warning=FALSE}
+#COI
+lineal.poly=lm(H_COI~poly(pH,2),data=ind_ph)
+summary(lineal.poly)
+lineal.lm=lm(H_COI~pH,data=ind_ph)
+summary(lineal.lm)
+AIC(lineal.poly,lineal.lm)
+
+#Display panel figure 4E
+H_COI=ind_ph%>%
+  ggplot(aes(pH,H_COI))+
+  geom_point() + 
+  geom_errorbar(aes(ymin = H_COI-H_COI.sd,ymax = H_COI+H_COI.sd )) + 
+  geom_errorbarh(aes(xmin = pH-pH.sd,xmax = pH+pH.sd))+
+  theme_bw()+
+  theme(strip.text.x = element_text(size=10),strip.background = element_blank(),
+        panel.grid.minor = element_blank(),panel.grid.major = element_blank(),
+        axis.text.x =element_blank(),axis.title.x= element_blank(),
+        axis.text.y =element_blank(),axis.title.y= element_blank(),
+        text = element_text(family="serif"))+
+  labs(y="",x="pH", title = "") +xlim(4,8)+ylim(0,4)+
+  geom_smooth(se=FALSE,method="lm", formula=y~poly(x,2))+
+  annotate("text",x=5.5,y=3.9,label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~"x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~"x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),cex =2.5,col="black")+
+  annotate("text",x=5.5,y=3.6,label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))~"**"),cex =2.5,col="black")
+
+```
+
+
+```{r fig.align="center", fig.height=4, fig.width=4, message=FALSE, warning=FALSE}
+#18S rRNA
+lineal.poly=lm(H_18S~poly(pH,2),data=ind_ph)
+summary(lineal.poly)
+lineal.lm=lm(H_18S~pH,data=ind_ph)
+summary(lineal.lm)
+AIC(lineal.poly,lineal.lm)
+
+#Display panel figure 4F
+H_18s=ind_ph%>%
+  ggplot(aes(pH,H_18S))+
+  geom_point() + 
+  geom_errorbar(aes(ymin = H_18S-H_18S.sd,ymax = H_18S+H_18S.sd )) + 
+  geom_errorbarh(aes(xmin = pH-pH.sd,xmax = pH+pH.sd))+
+  theme_bw()+
+  theme(strip.text.x = element_text(size=10),strip.background = element_blank(),
+        panel.grid.minor = element_blank(),panel.grid.major = element_blank(),
+        #axis.text.x = element_text(size=10, color="black",hjust=1),
+        #axis.title.x = element_text(color="black",size=12,face="bold"),
+        axis.text.x =element_blank(),axis.title.x= element_blank(),
+        axis.text.y =element_blank(),axis.title.y= element_blank(),
+        text = element_text(family="serif"))+
+  labs(y="",x="pH", title = "") +xlim(4,8)+ylim(0,4)+
+  geom_smooth(se=FALSE,method="lm", formula=y~poly(x,2))+
+  annotate("text",x=5.5,y=3.8,label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~"x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~"x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),cex =2.5,col="black")+
+  annotate("text",x=5.5,y=3.5,label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))~"*"),cex =2.5,col="black")
+
+```
+
+
+### Pielou evenness
+```{r fig.align="center", fig.height=4, fig.width=4, message=FALSE, warning=FALSE}
+#Morphological
+lineal.poly=lm(J_morpho~poly(pH,2),data=ind_ph)
+summary(lineal.poly)
+lineal.lm=lm(J_morpho~pH,data=ind_ph)
+summary(lineal.lm)
+AIC(lineal.poly,lineal.lm)
+
+#Display panel figure 4G
+J_morpho=ind_ph%>%
+  ggplot(aes(pH,J_morpho))+
+  geom_point() + 
+  geom_errorbar(aes(ymin = J_morpho-J_morpho.sd,ymax = J_morpho+J_morpho.sd )) + 
+  geom_errorbarh(aes(xmin = pH-pH.sd,xmax = pH+pH.sd))+
+  theme_bw()+
+  theme(strip.text.x = element_text(size=10),strip.background = element_blank(),
+        panel.grid.minor = element_blank(),panel.grid.major = element_blank(),
+        axis.text.x = element_text(size=10, color="black",hjust=1),
+        axis.title.x = element_text(color="black",size=12,face="bold"),
+        axis.title = element_text(color="black",size=12, face="bold"),
+        text = element_text(family="serif"))+
+  labs(y="Pielou evenness",x="pH", title = "") +xlim(4,8)+ylim(0,1)+
+  geom_smooth(se=FALSE,method="lm", formula=y~poly(x,2))+
+  annotate("text",x=5.6,y=0.32,label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~"x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~"x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),cex =2.5,col="black")+
+  annotate("text",x=5.6,y=0.25,label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))),cex =2.5,col="black")
+
+```
+
+
+```{r fig.align="center", fig.height=4, fig.width=4, message=FALSE, warning=FALSE}
+#COI
+lineal.poly=lm(J_COI~poly(pH,2),data=ind_ph)
+summary(lineal.poly)
+lineal.lm=lm(J_COI~pH,data=ind_ph)
+summary(lineal.lm)
+AIC(lineal.poly,lineal.lm)
+
+#Display panel figure 4H
+J_COI=ind_ph%>%
+  ggplot(aes(pH,J_COI))+
+  geom_point() + 
+  geom_errorbar(aes(ymin = J_COI-J_COI.sd,ymax = J_COI+J_COI.sd )) + 
+  geom_errorbarh(aes(xmin = pH-pH.sd,xmax = pH+pH.sd))+
+  theme_bw()+
+  theme(strip.text.x = element_text(size=10),strip.background = element_blank(),
+        panel.grid.minor = element_blank(),panel.grid.major = element_blank(),
+        axis.text.x = element_text(size=10, color="black",hjust=1),
+        axis.title.x = element_text(color="black",size=12,face="bold"),
+        axis.text.y =element_blank(),axis.title.y= element_blank(),
+        axis.title = element_text(color="black",size=12, face="bold"),
+        text = element_text(family="serif"))+
+  labs(y="",x="pH", title = "") +xlim(4,8)+ylim(0,1)+
+  geom_smooth(se=FALSE,method="lm", formula=y~poly(x,2))+
+  annotate("text",x=5.8,y=0.32,label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~"x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~"x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),cex = 2.5,col="black")+
+  annotate("text",x=5.8,y=0.25,label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))~"***"),cex =2.5,col="black")
+
+```
+
+
+```{r fig.align="center", fig.height=4, fig.width=4, message=FALSE, warning=FALSE}
+#18S rRNA
+lineal.poly=lm(J_18S~poly(pH,2),data=ind_ph)
+summary(lineal.poly)
+lineal.lm=lm(J_18S~pH,data=ind_ph)
+summary(lineal.lm)
+AIC(lineal.poly,lineal.lm)
+
+#Display panel figure 4I
+J_18s=ind_ph%>%
+  ggplot(aes(pH,J_18S))+
+  geom_point() + 
+  geom_errorbar(aes(ymin = J_18S-J_18S.sd,ymax = J_18S+J_18S.sd )) + 
+  geom_errorbarh(aes(xmin = pH-pH.sd,xmax = pH+pH.sd))+
+  theme_bw()+
+  theme(strip.text.x = element_text(size=10),strip.background = element_blank(),
+        panel.grid.minor = element_blank(),panel.grid.major = element_blank(),
+        axis.text.x = element_text(size=10, color="black",hjust=1),
+        axis.title.x = element_text(color="black",size=12,face="bold"),
+        axis.text.y =element_blank(),axis.title.y= element_blank(),
+        axis.title = element_text(color="black",size=12, face="bold"),
+        text = element_text(family="serif"))+
+  labs(y="",x="pH", title = "") +xlim(4,8)+ylim(0,1)+
+  geom_smooth(se=FALSE,method="lm", formula=y~poly(x,2))+
+  annotate("text",x=6.6,y=0.30,label=bquote("y="~.(round(summary(lineal.poly)[[4]][3,1],3))~"x"^2~"+"~.(round(summary(lineal.poly)[[4]][2,1],3))~"x"~"+"~.(round(summary(lineal.poly)[[4]][1,1],3))),cex = 2.5,col="black")+
+  annotate("text",x=6.6,y=0.23,label=bquote("R"^2~"="~.(round(summary(lineal.poly)[[8]],3))~"***"),cex =2.5,col="black")
+
+```
+
+
+## Display Figure 4
+Figure 4: Correlation between pH and alpha diversity variables (Richness, Shannon index, and Pielou) through morphological (A, D, G), COI (B, E, H), and 18S rRNA (C, F, I) datasets ordered by increasing pH. The dot is the average pH vs the average of the corresponding alpha diversity variable of each locality. Lines are the standard deviations of pH on the horizontal axis and the corresponding alpha on the vertical axis. The blue line is an adjusted polynomial model of order two.
+
+```{r echo=FALSE, fig.align="center", message=FALSE, warning=FALSE}
+#pdf(file="Figure 4.pdf",height = 16.9/2.54, width = 16.9/2.54)
+plot_grid(plot_grid
+          (S_morpho,
+            H_morpho,
+            J_morpho,
+            align = "v",axis="l",ncol=1,rel_heights=c(0.8,0.8,0.9),
+            labels = c("A","D","G"),label_size = 12,label_fontfamily ="serif"),
+          plot_grid(S_COI,
+                    H_COI,
+                    J_COI,
+                    align = "v",axis="l",ncol=1,rel_heights=c(0.8,0.8,0.9),
+                    labels = c("B","E","H"),label_size = 12,label_fontfamily ="serif"),
+          plot_grid(S_18s,
+                    H_18s,
+                    J_18s,
+                    align = "v",ncol=1,
+                    rel_heights=c(0.8,0.8,0.9),
+                    labels = c("C","F","I"),label_size = 12,label_fontfamily ="serif"),
+          ncol=3,rel_widths = c(0.92,0.75,0.75))
+#dev.off()
+
+```
+
+
+# Correlation and log2 fold changes
+## Log2 fold changes
+```{r message=FALSE, warning=FALSE}
+meta.diff.coi<-metadata[,1:2]
+meta.diff.18s<-metadata[,1:2]
+
+#Richnnes log2 fold changes
+meta.diff.coi$L2FC<-log2(metadata$S_COI/metadata$S_morpho)
+meta.diff.coi$Method<-"COI"
+meta.diff.18s$L2FC<-log2(metadata$S_18s/metadata$S_morpho)
+meta.diff.18s$Method<-"18S"
+
+meta.diff.rich<-rbind(meta.diff.coi,meta.diff.18s)
+head(meta.diff.rich)
+```
+
+
+```{r fig.align="center", fig.height=4, fig.width=4, message=FALSE, warning=FALSE}
+#Display panel figure 2B
+plot.L2FC.rich<-meta.diff.rich%>%
+  ggplot(aes(L2FC,Method,fill=Method))+
+  geom_boxplot(outlier.shape = NA,alpha=0.4)+
+  geom_jitter(aes(L2FC,Method,fill=Method),position=position_jitterdodge(0.4),shape=21,size=1)+
+  scale_fill_manual(values = c("#6600CC","#FF9900"))+geom_vline(xintercept = 0,linetype="dashed")+
+  labs(x="",y="Richness")+xlim(-3.5,2)+
+  theme_bw()+theme(strip.text.x = element_text(size=10),strip.background = element_blank(),
+                   panel.grid.minor = element_blank(),panel.grid.major = element_blank(),
+                   axis.text.x =element_blank(),axis.title.x= element_blank(),
+                   axis.text.y = element_text(size=8,color="black",angle=0,vjust = 0.5),
+                   axis.title.y = element_text(color="black", size=10),
+                   text = element_text(family="serif"))+
+  theme(legend.position = "right",legend.key.size = unit(0.5, 'cm'),legend.text = element_text(size=8))#+theme(plot.margin=margin(b=-1.8,unit="cm"))
+legenda_rich=get_legend(plot.L2FC.rich)
+plot.L2FC.rich=plot.L2FC.rich+theme(legend.position = "none")
+
+#Normality test
+shapiro.test(meta.diff.rich$L2FC[meta.diff.rich$Method=="COI"])
+shapiro.test(meta.diff.rich$L2FC[meta.diff.rich$Method=="18S"])
+#t-student
+t.test(meta.diff.rich$L2FC[meta.diff.rich$Method=="COI"],mu=0)
+t.test(meta.diff.rich$L2FC[meta.diff.rich$Method=="18S"],mu=0)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+#Shannon index log2 fold changes
+meta.diff.sha.coi<-metadata[,1:2]
+meta.diff.sha.18s<-metadata[,1:2]
+
+meta.diff.sha.coi$L2FC<-log2(metadata$H_COI/metadata$H_morpho)
+meta.diff.sha.coi$Method<-"COI"
+meta.diff.sha.18s$L2FC<-log2(metadata$H_18s/metadata$H_morpho)
+meta.diff.sha.18s$Method<-"18S"
+
+meta.diff.shannon<-rbind(meta.diff.sha.coi,meta.diff.sha.18s)
+head(meta.diff.shannon)
+```
+
+
+```{r fig.align="center", fig.height=4, fig.width=4, message=FALSE, warning=FALSE}
+#Display panel figure 2D
+plot.L2FC.shannon<-meta.diff.shannon%>%
+  ggplot(aes(L2FC,Method,fill=Method))+
+  geom_boxplot(outlier.shape = NA,alpha=0.4)+
+  geom_jitter(aes(L2FC,Method,fill=Method),position=position_jitterdodge(0.4),shape=21,size=1)+
+  scale_fill_manual(values = c("#6600CC","#FF9900"))+geom_vline(xintercept = 0,linetype="dashed")+
+  labs(x="",y="Shannon")+xlim(-3.5,2)+
+  theme_bw()+theme(strip.text.x = element_text(size=10),strip.background = element_blank(),
+                   panel.grid.minor = element_blank(),panel.grid.major = element_blank(),
+                   axis.text.x =element_blank(),axis.title.x= element_blank(),
+                   axis.text.y = element_text(size=8,color="black",angle=0,vjust = 0.5),
+                   axis.title.y = element_text(color="black", size=10),
+                   text = element_text(family="serif"))+
+  theme(legend.position = "right",legend.key.size = unit(0.5, 'cm'),legend.text = element_text(size=8))
+legenda_shannon=get_legend(plot.L2FC.shannon)
+plot.L2FC.shannon=plot.L2FC.shannon+theme(legend.position = "none")
+
+#Normality test
+shapiro.test(meta.diff.shannon$L2FC[meta.diff.shannon$Method=="COI"])
+shapiro.test(meta.diff.shannon$L2FC[meta.diff.shannon$Method=="18S"])
+#Statistical test
+wilcox.test(meta.diff.shannon$L2FC[meta.diff.shannon$Method=="COI"],mu=0)
+wilcox.test(meta.diff.shannon$L2FC[meta.diff.shannon$Method=="18S"],mu=0)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+#Pielou evenness log2 fold changes
+meta.diff.pie.coi<-metadata[,1:2]
+meta.diff.pie.18s<-metadata[,1:2]
+
+meta.diff.pie.coi$L2FC<-log2(metadata$J_COI/metadata$J_morpho)
+meta.diff.pie.coi$Method<-"COI"
+meta.diff.pie.18s$L2FC<-log2(metadata$J_18s/metadata$J_morpho)
+meta.diff.pie.18s$Method<-"18S"
+
+meta.diff.pielou<-rbind(meta.diff.pie.coi,meta.diff.pie.18s)
+head(meta.diff.pielou)
+```
+
+
+```{r fig.align="center", fig.height=4, fig.width=4, message=FALSE, warning=FALSE}
+#Display panel figure 2F
+plot.L2FC.pielou<-meta.diff.pielou%>%
+  ggplot(aes(L2FC,Method, fill=Method))+
+  geom_boxplot(outlier.shape = NA,alpha=0.4)+
+  geom_jitter(aes(L2FC,Method,fill=Method),position=position_jitterdodge(0.4),shape=21,size=1)+
+  scale_fill_manual(values = c("#6600CC","#FF9900"))+geom_vline(xintercept = 0,linetype="dashed")+
+  labs(x=expression("Log" [2] * " fold change"),y="Pielou evenness")+xlim(-3.5,2)+
+  theme_bw()+theme(strip.text.x = element_text(size=10),strip.background = element_blank(),
+                   panel.grid.minor = element_blank(),panel.grid.major = element_blank(),
+                   axis.text.x = element_text(size=8,color="black",angle=0,vjust = 0.5),
+                   axis.text.y = element_text(size=8,color="black",angle=0,vjust = 0.5),
+                   axis.title.x = element_text(color="black", size=10,margin = margin(t = 0,l=0)),
+                   axis.title.y = element_text(color="black", size=10),
+                   text = element_text(family="serif"))+ 
+  guides(fill=guide_legend(ncol=2))+
+  theme(legend.position="none",legend.key.size = unit(0.4, 'cm'),
+        legend.text = element_text(size=4),legend.title = element_text(size=6))
+legenda_pielou=get_legend(plot.L2FC.pielou)
+
+#Normality test
+shapiro.test(meta.diff.pielou$L2FC[meta.diff.pielou$Method=="COI"])
+shapiro.test(meta.diff.pielou$L2FC[meta.diff.pielou$Method=="18S"])
+#Statistical test
+wilcox.test(meta.diff.pielou$L2FC[meta.diff.pielou$Method=="COI"],mu=0)
+wilcox.test(meta.diff.pielou$L2FC[meta.diff.pielou$Method=="18S"],mu=0)
+
+```
+
+
+## Correlation analysis
+```{r fig.align="center", fig.height=3, fig.width=3, message=FALSE, warning=FALSE}
+#Richness
+corr_rich<-rcorr(as.matrix(metadata[,c(25,28,31)]),type="spearman")
+corr_rich
+#significance
+round(as.dist(corr_rich$P),4)
+
+#Display panel figure 2A
+richness_corr=ggcorrplot(corr_rich$r,type = "upper",
+                         outline.col = "white",lab=TRUE,insig = "blank",lab_size = 3)+
+  theme_bw()+
+  labs(x="",y="")+
+  theme_tufte(base_size = 7)+
+  theme(strip.text.x = element_text(size=12),strip.background = element_blank(),
+        panel.grid.minor = element_blank(),panel.grid.major = element_blank(),
+        axis.title.x =element_blank(),axis.title.y= element_blank(),
+        axis.text.x = element_text(size=8,color="black",angle=0,vjust = 0.5),
+        axis.text.y = element_text(size=8,color="black",angle=0,vjust = 0.5),
+        text = element_text(family="serif"))+
+  theme(legend.position = "none",legend.key.size = unit(0.5, 'cm'),legend.text = element_text(size=8))
+
+```
+
+
+```{r fig.align="center", fig.height=3, fig.width=3, message=FALSE, warning=FALSE}
+#Shannon index
+corr_sha<-rcorr(as.matrix(metadata[,c(24,27,30)]),type="spearman")
+corr_sha
+#significance
+round(as.dist(corr_sha$P),4)
+
+#Display panel figure 2C
+shannon_corr=ggcorrplot(corr_sha$r,type = "upper",
+                        outline.col = "white",lab=TRUE,insig = "blank",lab_size = 3)+
+  labs(x="",y="")+
+  theme_bw()+
+  theme_tufte(base_size = 7)+
+  theme(strip.text.x = element_text(size=12),strip.background = element_blank(),
+        panel.grid.minor = element_blank(),panel.grid.major = element_blank(),
+        axis.title.x =element_blank(),axis.title.y= element_blank(),
+        axis.text.x = element_text(size=8,color="black",angle=0,vjust = 0.5),
+        axis.text.y = element_text(size=8,color="black",angle=0,vjust = 0.5),
+        text = element_text(family="serif"))+
+  theme(legend.position = "none",legend.key.size = unit(0.5, 'cm'),legend.text = element_text(size=8))
+
+```
+
+
+```{r fig.align="center", fig.height=3, fig.width=3, message=FALSE, warning=FALSE}
+#Pielou evenness
+corr_pie<-rcorr(as.matrix(metadata[,c(26,29,32)]),type="spearman")
+corr_pie
+#Significance
+round(as.dist(corr_pie$P),4)
+
+#Display panel figure 2E
+pielou_corr=ggcorrplot(corr_pie$r,type = "upper",
+                       outline.col = "white",lab=TRUE,insig = "blank",lab_size=3)+
+  labs(x="",y="")+
+  theme_bw()+
+  theme_tufte(base_size = 7)+
+  theme(strip.text.x = element_text(size=12),strip.background = element_blank(),
+        panel.grid.minor = element_blank(),panel.grid.major = element_blank(),                   #axis.text.x =element_blank(),axis.title.x= element_blank(),
+        axis.title.x =element_blank(),axis.title.y= element_blank(),
+        axis.text.x = element_text(size=8,color="black",angle=0,vjust = 0.5),
+        axis.text.y = element_text(size=8,color="black",angle=0,vjust = 0.5),
+        text = element_text(family="serif"))+
+  theme(legend.position = "bottom",legend.key.size = unit(0.4, 'cm'),legend.text = element_text(size=8),
+        legend.title = element_text(size = 8))
+legenda_pielou_corr=get_plot_component(pielou_corr, 'guide-box-bottom', return_all = TRUE)
+pielou_corr=pielou_corr+theme(legend.position = "none")
+
+```
+
+
+## Display Figure 2
+Figure 2: Correlation between molecular and morphological identification in richness (A), Shannon index (C), and Pielou evenness (E). Comparison of alpha diversity indices in the three approaches to diatom communities of high mountain mires in richness (B), Shannon index (D), and Pielou evenness (F), molecular with morphological identification.
+
+```{r echo=FALSE, fig.align="center", message=FALSE, warning=FALSE}
+#pdf(file="Figure 2.pdf",height = 12/2.54, width = 13/2.54)
+plot_grid(plot_grid(richness_corr,shannon_corr,pielou_corr,legenda_pielou_corr,
+                    align = "v",ncol =1,rel_heights=c(0.45,0.45,0.45,0.1),labels = c("A","C","E",""),
+                    label_fontfamily = "serif",
+                    hjust=c(-0.7,-0.7,-0.7,-0.7),vjust =c(1,1,1,1)),
+          plot_grid(plot.L2FC.rich,plot.L2FC.shannon,plot.L2FC.pielou,NULL,
+                    rel_heights=c(0.45,0.45,0.5,0.1),ncol=1,labels = c("B","D","F",""),
+                    label_fontfamily = "serif",
+                    hjust=c(-0.1,-0.1,-0.1,-0.1),vjust =c(1,1,1,1)),
+          align = "v",ncol =2,rel_widths = c(0.45,0.5))
+#dev.off()
+
+```
+
