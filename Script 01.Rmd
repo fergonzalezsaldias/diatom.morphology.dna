@@ -34,7 +34,7 @@ library(cowplot)
 library(car)
 library("pgirmess")
 library(microbiome)
-
+library (adespatial)
 
 ```
 
@@ -952,3 +952,67 @@ plot_grid(plot_grid(richness_corr,shannon_corr,pielou_corr,legenda_pielou_corr,
 
 ```
 
+# dbRDA
+```{r message=FALSE, warning=FALSE,fig.align="center"}
+Metadata=data.frame(read_xlsx("data\\Table S1.xlsx",sheet="Metadata",na=""))
+
+x<-Metadata[3:23]
+head(x)
+
+#data transformation
+datos.trans_morpho <- sqrt(dato_morpho)
+datos.trans_coi <- sqrt(dato_coi)
+datos.trans_18s<- sqrt(dato_18s)
+```
+
+## dbRDA Morphology
+```{r message=FALSE, warning=FALSE,fig.align="center"}
+analisis_morpho <- capscale(datos.trans_morpho ~ WTD+GDD+Rad+
+                        Sphagnum+Brown_mosses+Acrocarp_mosses+Liverworts+
+                        Bryophytes+Vascular_plants+
+                       pH+Prec+K+Mg+Mn+Na+P+S+Si, Metadata,
+                     dist="bray")
+
+anova (analisis_morpho)  # 0.001 *** - it is significant
+adjR2.tbrda <- RsquareAdj (analisis_morpho)$adj.r.squared 
+
+
+#Forward selection
+sel.fs <- forward.sel (Y = datos.trans_morpho , X=x, adjR2thresh = adjR2.tbrda) 
+sel.fs
+
+```
+
+## dbRDA COI
+```{r message=FALSE, warning=FALSE,fig.align="center"}
+analisis_coi <- capscale(datos.trans_coi ~ WTD+GDD+Rad+
+                        Sphagnum+Brown_mosses+Acrocarp_mosses+Liverworts+
+                        Bryophytes+Vascular_plants+
+                       pH+Prec+K+Mg+Mn+Na+P+S+Si, Metadata,
+                     dist="bray")
+
+anova (analisis_coi)  # 0.001 *** - it is significant
+adjR2.tbrda <- RsquareAdj (analisis_coi)$adj.r.squared 
+
+#Forward selection
+sel.fs <- forward.sel (Y = datos.trans_coi , X=x, adjR2thresh = adjR2.tbrda) 
+sel.fs
+
+```
+
+## dbRDA 18S
+```{r message=FALSE, warning=FALSE,fig.align="center"}
+analisis_18S <- capscale(datos.trans_18s ~ WTD+GDD+Rad+
+                        Sphagnum+Brown_mosses+Acrocarp_mosses+Liverworts+
+                        Bryophytes+Vascular_plants+
+                       pH+Prec+K+Mg+Mn+Na+P+S+Si, Metadata,
+                     dist="bray")
+
+anova (analisis_18S)  # 0.001 *** - it is significant
+adjR2.tbrda <- RsquareAdj (analisis_18S)$adj.r.squared 
+
+#Forward selection
+sel.fs <- forward.sel (Y = datos.trans_18s , X=x, adjR2thresh = adjR2.tbrda) 
+sel.fs
+
+```
