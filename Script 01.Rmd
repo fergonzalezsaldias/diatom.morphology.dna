@@ -229,6 +229,7 @@ Figure 3: Comparison of MDS through Procrustes analysis between morphological vs
 
 ```{r echo=FALSE, fig.align="center", message=FALSE, warning=FALSE}
 #pdf(file="Figure 3.pdf",height = 15/2.54, width = 20/2.54)
+#tiff('Figure 3.tiff',width = 20, height = 15,units = "cm", res=600)
 plot_grid(plot_grid(pro_morpho_coi,Residuals,labels = c("A","C"),label_fontfamily = "serif"),
           plot_grid(pro_morpho_18s,legenda_18s_pro,labels = c("B"),label_fontfamily =  "serif"),nrow =2,
           rel_heights = c(0.9,0.9),rel_widths = c(0.8,0.1),axis = "l")
@@ -679,6 +680,7 @@ Figure 4: Correlation between pH and alpha diversity variables (Richness, Shanno
 
 ```{r echo=FALSE, fig.align="center", message=FALSE, warning=FALSE}
 #pdf(file="Figure 4.pdf",height = 16.9/2.54, width = 16.9/2.54)
+#tiff('Figure 4.tiff',width = 16.9, height = 16.9,units = "cm", res=600)
 plot_grid(plot_grid
           (S_morpho,
             H_morpho,
@@ -939,6 +941,7 @@ Figure 2: Correlation between molecular and morphological identification in rich
 
 ```{r echo=FALSE, fig.align="center", message=FALSE, warning=FALSE}
 #pdf(file="Figure 2.pdf",height = 12/2.54, width = 13/2.54)
+#tiff('Figure 2.tiff',width = 13, height = 12,units = "cm", res=600)
 plot_grid(plot_grid(richness_corr,shannon_corr,pielou_corr,legenda_pielou_corr,
                     align = "v",ncol =1,rel_heights=c(0.45,0.45,0.45,0.1),labels = c("A","C","E",""),
                     label_fontfamily = "serif",
@@ -970,7 +973,7 @@ datos.trans_18s<- sqrt(dato_18s)
 analisis_morpho <- capscale(datos.trans_morpho ~ WTD+GDD+Rad+
                         Sphagnum+Brown_mosses+Acrocarp_mosses+Liverworts+
                         Bryophytes+Vascular_plants+
-                       pH+Prec+K+Mg+Mn+Na+P+S+Si, Metadata,
+                       pH+Prec+K+Mg+Mn+Na+P+S+Si+Al+Ca+Fe, Metadata,
                      dist="bray")
 
 anova (analisis_morpho)  # 0.001 *** - it is significant
@@ -981,6 +984,9 @@ adjR2.tbrda <- RsquareAdj (analisis_morpho)$adj.r.squared
 sel.fs <- forward.sel (Y = datos.trans_morpho , X=x, adjR2thresh = adjR2.tbrda) 
 sel.fs
 
+analisis_morpho_fs <- capscale(datos.trans_morpho ~ GDD+pH+Prec+Mg, Metadata,
+                     dist="bray")
+summary(analisis_morpho_fs)
 ```
 
 ## dbRDA COI
@@ -988,7 +994,7 @@ sel.fs
 analisis_coi <- capscale(datos.trans_coi ~ WTD+GDD+Rad+
                         Sphagnum+Brown_mosses+Acrocarp_mosses+Liverworts+
                         Bryophytes+Vascular_plants+
-                       pH+Prec+K+Mg+Mn+Na+P+S+Si, Metadata,
+                       pH+Prec+K+Mg+Mn+Na+P+S+Si+Al+Ca+Fe, Metadata,
                      dist="bray")
 
 anova (analisis_coi)  # 0.001 *** - it is significant
@@ -998,6 +1004,9 @@ adjR2.tbrda <- RsquareAdj (analisis_coi)$adj.r.squared
 sel.fs <- forward.sel (Y = datos.trans_coi , X=x, adjR2thresh = adjR2.tbrda) 
 sel.fs
 
+analisis_coi_fs <- capscale(datos.trans_coi ~ GDD+Sphagnum+Acrocarp_mosses+pH+Mg, Metadata,
+                     dist="bray")
+summary(analisis_coi_fs)
 ```
 
 ## dbRDA 18S
@@ -1005,7 +1014,7 @@ sel.fs
 analisis_18S <- capscale(datos.trans_18s ~ WTD+GDD+Rad+
                         Sphagnum+Brown_mosses+Acrocarp_mosses+Liverworts+
                         Bryophytes+Vascular_plants+
-                       pH+Prec+K+Mg+Mn+Na+P+S+Si, Metadata,
+                       pH+Prec+K+Mg+Mn+Na+P+S+Si+Al+Ca+Fe, Metadata,
                      dist="bray")
 
 anova (analisis_18S)  # 0.001 *** - it is significant
@@ -1015,4 +1024,8 @@ adjR2.tbrda <- RsquareAdj (analisis_18S)$adj.r.squared
 sel.fs <- forward.sel (Y = datos.trans_18s , X=x, adjR2thresh = adjR2.tbrda) 
 sel.fs
 
+analisis_18S_fs <- capscale(datos.trans_18s ~ GDD+Brown_mosses+
+                       pH+Mg+S+Al, Metadata,
+                     dist="bray")
+summary(analisis_18S_fs)
 ```
